@@ -8,11 +8,13 @@ on:
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
+# Required permissions for GitHub Pages deployment
 permissions:
   contents: read
   pages: write
   id-token: write
 
+# Allow only one concurrent deployment
 concurrency:
   group: "pages"
   cancel-in-progress: true
@@ -27,16 +29,23 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        with:
+          # Enable Pages if not already enabled (may be blocked by org policy)
+          enablement: true
 
-      - name: Copy static files
+      - name: Verify build directory exists
         run: |
-          mkdir -p _site
-          cp -r webui/public/* _site/
+          if [ ! -d "webui/public" ]; then
+            echo "Error: webui/public directory not found"
+            exit 1
+          fi
+          echo "Build directory contents:"
+          ls -la webui/public/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: webui/public
 
   deploy:
     needs: build
