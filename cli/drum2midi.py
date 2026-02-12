@@ -3,6 +3,7 @@
 
 Usage:
     drum2midi <input.wav> --out <dir> --stems kick snare hihat --bpm auto
+    drum2midi <input.wav> --out <dir> --sep-backend demucs --sep-quality best
 """
 import argparse
 import sys
@@ -33,7 +34,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--stems",
         nargs="+",
         default=["kick", "snare", "hihat"],
-        choices=["kick", "snare", "hihat", "tom_low", "tom_mid", "tom_high", "crash", "ride"],
+        choices=["kick", "snare", "hihat", "toms", "crash", "ride"],
         help="Stems to extract (default: kick snare hihat)",
     )
 
@@ -50,11 +51,39 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Quantize strength 0.0-1.0 (default: 0.0 = no quantize)",
     )
 
+    # Separation options
     parser.add_argument(
-        "--method",
-        default="bandpass",
-        choices=["bandpass"],
-        help="Separation method (default: bandpass)",
+        "--sep-backend",
+        default="auto",
+        choices=["auto", "demucs", "bandpass"],
+        help="Separation backend: auto (use demucs if available), demucs (ML), bandpass (DSP)",
+    )
+
+    parser.add_argument(
+        "--sep-model",
+        default="htdemucs",
+        help="Demucs model name (default: htdemucs)",
+    )
+
+    parser.add_argument(
+        "--sep-quality",
+        default="balanced",
+        choices=["fast", "balanced", "best"],
+        help="Separation quality preset (default: balanced)",
+    )
+
+    parser.add_argument(
+        "--device",
+        default="auto",
+        choices=["auto", "cpu", "cuda", "mps"],
+        help="Compute device for ML separation (default: auto)",
+    )
+
+    parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=None,
+        help="Model cache directory",
     )
 
     return parser.parse_args(argv)
@@ -73,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: Input file not found: {args.input}", file=sys.stderr)
         return 1
 
-    if not args.input.suffix.lower() in (".wav", ".wave"):
+    if args.input.suffix.lower() not in (".wav", ".wave"):
         print(f"Error: Input must be a WAV file: {args.input}", file=sys.stderr)
         return 1
 
@@ -89,6 +118,17 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Error: Invalid BPM value: {e}", file=sys.stderr)
             return 1
 
+    # Build separation config
+    from engine.separation import SeparationConfig
+
+    sep_config = SeparationConfig(
+        method=args.sep_backend,
+        model=args.sep_model,
+        device=args.device,
+        quality=args.sep_quality,
+        cache_dir=str(args.cache_dir) if args.cache_dir else None,
+    )
+
     # Process
     try:
         from engine.pipeline import process_drum_audio
@@ -97,6 +137,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Output dir: {args.out}")
         print(f"Stems: {', '.join(args.stems)}")
         print(f"BPM: {bpm}")
+        print(f"Separation: {args.sep_backend} (quality: {args.sep_quality})")
         print()
 
         result = process_drum_audio(
@@ -105,12 +146,13 @@ def main(argv: list[str] | None = None) -> int:
             stems=args.stems,
             bpm=bpm,
             quantize=args.quantize,
-            separation_method=args.method,
+            sep_config=sep_config,
         )
 
         print("Done!")
         print(f"  Duration: {result['duration']:.2f}s")
         print(f"  Detected BPM: {result['bpm']}")
+        print(f"  Separation: {result.get('separation_method', 'unknown')}")
         print(f"  MIDI notes: {result['total_midi_notes']}")
         print(f"  Onsets per stem:")
         for stem, count in result["onsets_count"].items():
@@ -125,6 +167,11 @@ def main(argv: list[str] | None = None) -> int:
 
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ImportError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        print("\nTo use Demucs, install with: pip install demucs", file=sys.stderr)
+        print("Or use --sep-backend bandpass for DSP-based separation.", file=sys.stderr)
         return 1
     except Exception as e:
         print(f"Error: Processing failed: {e}", file=sys.stderr)

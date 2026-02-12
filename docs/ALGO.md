@@ -1,93 +1,162 @@
 # Algorithm Documentation
 
-## Separation Method (Phase A)
+## Drum Separation
 
-### Chosen Approach: DSP-based Band Splitting
+### Available Methods
 
-For Phase A, we use **frequency band splitting** to separate drum components. This approach was chosen for:
+#### 1. Demucs (ML-based) - Recommended for Quality
 
-1. **Simplicity** - No ML model dependencies, fast setup
-2. **Determinism** - Same input always produces same output
-3. **Low latency** - Pure DSP, no model inference overhead
-4. **Zero external dependencies** - Uses only scipy/numpy
+**Method:** Deep learning source separation using Facebook's Demucs model.
 
-### Frequency Bands
+**How it works:**
+1. Input audio is processed through a U-Net style neural network
+2. Demucs separates into 4 stems: drums, bass, vocals, other
+3. We extract the "drums" stem and apply frequency filtering to isolate kick/snare/hihat
 
-| Drum    | Low (Hz) | High (Hz) | Filter Type |
-|---------|----------|-----------|-------------|
-| Kick    | 20       | 150       | Low-pass    |
-| Snare   | 150      | 2000      | Band-pass   |
-| Hi-hat  | 5000     | 20000     | High-pass   |
+**Advantages:**
+- High-quality separation with minimal bleed
+- Handles complex, reverberant audio well
+- Preserves transients and natural sound
 
-### Limitations
+**Limitations:**
+- Requires PyTorch (~500MB+)
+- Model download required (~80MB for htdemucs)
+- Slower than DSP approach (2-10x real-time on CPU)
+- May struggle with unconventional drum sounds
 
-- **Frequency overlap**: Real drums have harmonics across bands. A kick has sub-bass but also mid transients. Band splitting creates artifacts.
-- **Bleed**: Hi-hats recorded simultaneously with kick will appear in both.
-- **Not suitable for**: Complex polyphonic drums, heavily processed/effected drums, live recordings with significant room ambience.
+**Installation:**
+```bash
+pip install demucs
+```
 
-### When to Use
+**License:** MIT (Demucs), BSD (PyTorch)
 
-Best for:
-- Synthetic/electronic drums (e.g., Suno stems)
-- Clean, close-miked drums
-- Drums with clear frequency separation
-- Quick previews before deeper processing
+#### 2. Bandpass (DSP-based) - Lightweight Fallback
+
+**Method:** Frequency band splitting with noise gating.
+
+**Frequency bands:**
+| Drum   | Low (Hz) | High (Hz) | Filter     |
+|--------|----------|-----------|------------|
+| Kick   | 20       | 150       | Low-pass   |
+| Snare  | 150      | 4000      | Band-pass  |
+| Hi-hat | 5000     | 22050     | High-pass  |
+| Toms   | 80       | 500       | Band-pass  |
+
+**Post-processing:**
+- Butterworth filters (order based on quality setting)
+- Noise gating to reduce bleed between stems
+- Envelope smoothing for natural decay
+
+**Quality presets:**
+| Preset   | Filter Order | Gating |
+|----------|--------------|--------|
+| fast     | 2            | No     |
+| balanced | 4            | Yes    |
+| best     | 6            | Yes    |
+
+**Advantages:**
+- No ML dependencies
+- Very fast (real-time capable)
+- Deterministic output
+- Works offline
+
+**Limitations:**
+- Limited separation quality
+- Frequency overlap causes bleed
+- Doesn't handle reverb well
+- Not suitable for complex polyphonic drums
+
+**License:** BSD (scipy, numpy)
+
+---
 
 ## Onset Detection
 
-Uses **spectral flux** method:
+**Method:** Spectral flux with peak picking.
 
-1. Compute short-time Fourier transform (STFT)
-2. Calculate positive difference in magnitude between frames
+1. Compute STFT (2048 samples, 512 hop)
+2. Calculate positive frame-to-frame magnitude difference
 3. Sum across frequency bins → onset strength envelope
-4. Peak picking with minimum distance constraint
+4. Peak picking with minimum distance constraint (30ms)
 
-Parameters:
-- FFT size: 2048 samples
-- Hop length: 512 samples (~11.6ms at 44.1kHz)
-- Minimum onset distance: 30ms (prevents double triggers)
+**Parameters:**
+- Threshold: 0.1 (normalized)
+- Minimum onset distance: 30ms
+
+---
 
 ## Tempo Estimation
 
-Uses **autocorrelation of onset envelope**:
+**Method:** Autocorrelation of onset envelope.
 
-1. Compute onset envelope
-2. Autocorrelate
-3. Find peak in valid BPM range (60-200 BPM)
-4. Convert lag to BPM
+1. Compute onset strength envelope
+2. Remove DC offset
+3. Autocorrelate
+4. Find peak in valid BPM range (60-200 BPM)
+5. Convert lag to BPM
+
+---
 
 ## MIDI Generation
 
-- Uses General MIDI drum map (channel 10)
-- Velocity derived from onset strength (normalized to 1-127)
-- Note duration: 0.1 beats (short hits)
+- Channel 10 (drums)
+- General MIDI drum map:
+  - Kick: 36 (C1)
+  - Snare: 38 (D1)
+  - Hi-hat closed: 42 (F#1)
+  - Hi-hat open: 46 (A#1)
+  - Toms: 45, 47, 50
+- Velocity: 1-127 from onset strength
+- Note duration: 0.1 beats
 
 ---
 
-## License Notes
+## Performance Notes
 
-All dependencies use permissive licenses:
+### CPU
+- Bandpass: <0.1x real-time (very fast)
+- Demucs: 2-10x real-time depending on CPU
 
-| Package   | License | Notes |
-|-----------|---------|-------|
-| numpy     | BSD-3   | Core numerical |
-| scipy     | BSD-3   | Signal processing |
-| midiutil  | MIT     | MIDI file writing |
-| soundfile | BSD-3   | Audio I/O (libsndfile wrapper) |
+### Apple Silicon (MPS)
+- Demucs with `--device mps`: ~1-2x real-time
+- Significant speedup over CPU
 
-**No GPL/LGPL dependencies** in Phase A implementation.
+### CUDA
+- Demucs with `--device cuda`: ~0.5x real-time
+- Fastest option if available
 
 ---
 
-## Phase B Considerations
+## License Summary
 
-For improved separation quality, consider:
+| Component  | License | Notes |
+|------------|---------|-------|
+| numpy      | BSD-3   | Core numerical |
+| scipy      | BSD-3   | Signal processing |
+| midiutil   | MIT     | MIDI file writing |
+| soundfile  | BSD-3   | Audio I/O |
+| demucs     | MIT     | ML separation (optional) |
+| torch      | BSD-3   | ML runtime (optional) |
 
-1. **Demucs** (MIT license) - Facebook's source separation model
-2. **Open-Unmix** (MIT license) - Lighter weight alternative
-3. **Spleeter** (MIT license) - Deezer's separation model
+**All dependencies are permissive (MIT/BSD).** No GPL/LGPL dependencies.
 
-These would require:
-- PyTorch or TensorFlow runtime
-- Model weights download (~100MB-1GB)
-- GPU recommended for real-time processing
+---
+
+## Recommended Usage
+
+1. **For best quality:** Use Demucs
+   ```bash
+   drum2midi input.wav --out out --sep-backend demucs --sep-quality best
+   ```
+
+2. **For speed/lightweight:** Use bandpass
+   ```bash
+   drum2midi input.wav --out out --sep-backend bandpass --sep-quality fast
+   ```
+
+3. **Auto selection:**
+   ```bash
+   drum2midi input.wav --out out --sep-backend auto
+   ```
+   Uses Demucs if installed, otherwise bandpass.
