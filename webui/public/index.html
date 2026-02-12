@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>drum2midi - Web UI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🥁 drum2midi</h1>
+      <p>Drum WAV separation and MIDI extraction</p>
+    </header>
+
+    <main>
+      <!-- Upload Section -->
+      <section class="upload-section" id="upload-section">
+        <div class="drop-zone" id="drop-zone">
+          <div class="drop-zone-content">
+            <span class="drop-icon">📁</span>
+            <p>Drag & drop a WAV file here</p>
+            <p class="or">or</p>
+            <label class="file-input-label">
+              <input type="file" id="file-input" accept=".wav,.wave" hidden>
+              <span class="btn btn-primary">Choose File</span>
+            </label>
+          </div>
+          <p class="file-name" id="file-name"></p>
+        </div>
+
+        <!-- Options -->
+        <div class="options">
+          <div class="option-group">
+            <label for="stems">Stems</label>
+            <select id="stems" multiple>
+              <option value="kick" selected>Kick</option>
+              <option value="snare" selected>Snare</option>
+              <option value="hihat" selected>Hi-hat</option>
+              <option value="toms">Toms</option>
+            </select>
+          </div>
+
+          <div class="option-group">
+            <label for="bpm">BPM</label>
+            <input type="text" id="bpm" value="auto" placeholder="auto or number">
+          </div>
+
+          <div class="option-group">
+            <label for="sep-backend">Separation</label>
+            <select id="sep-backend">
+              <option value="bandpass">Bandpass (Fast)</option>
+              <option value="demucs">Demucs (Quality)</option>
+            </select>
+          </div>
+
+          <div class="option-group">
+            <label for="sep-quality">Quality</label>
+            <select id="sep-quality">
+              <option value="fast">Fast</option>
+              <option value="balanced" selected>Balanced</option>
+              <option value="best">Best</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-large" id="process-btn" disabled>
+          Process
+        </button>
+      </section>
+
+      <!-- Progress Section -->
+      <section class="progress-section hidden" id="progress-section">
+        <div class="progress-container">
+          <div class="spinner"></div>
+          <p class="status-text" id="status-text">Uploading...</p>
+        </div>
+      </section>
+
+      <!-- Result Section -->
+      <section class="result-section hidden" id="result-section">
+        <div class="result-card">
+          <h2>✅ Processing Complete</h2>
+          <div class="result-info" id="result-info"></div>
+          <button class="btn btn-success btn-large" id="download-btn">
+            Download ZIP
+          </button>
+          <button class="btn btn-secondary" id="new-btn">
+            Process Another
+          </button>
+        </div>
+      </section>
+
+      <!-- Error Section -->
+      <section class="error-section hidden" id="error-section">
+        <div class="error-card">
+          <h2>❌ Error</h2>
+          <p id="error-message"></p>
+          <button class="btn btn-secondary" id="retry-btn">
+            Try Again
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        <a href="https://github.com/happyskygang/yeelowoon" target="_blank">GitHub</a>
+        · MIT License
+      </p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

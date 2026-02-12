@@ -38,8 +38,10 @@ htmlcov/
 
 # Project outputs (generated files)
 out/
+jobs/
 *.wav
 *.mid
+*.zip
 
 # OS
 .DS_Store

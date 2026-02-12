@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8001
+      - WORK_DIR=/tmp/drum2midi-jobs
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:8080,https://happyskygang.github.io
+    volumes:
+      - ./jobs:/tmp/drum2midi-jobs
+    restart: unless-stopped
