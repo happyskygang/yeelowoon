@@ -1,14 +1,31 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "setuptools_scm>=8.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "drum2midi"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Drum WAV separation and MIDI extraction for Logic Pro workflow"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {text = "MIT"}
+authors = [
+    {name = "happyskygang"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+    "Topic :: Multimedia :: Sound/Audio :: Conversion",
+]
+keywords = ["drum", "midi", "audio", "separation", "music", "daw", "logic-pro"]
 dependencies = [
     "numpy>=1.21.0",
     "scipy>=1.7.0",
@@ -20,14 +37,24 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "build>=1.0.0",
 ]
 
 [project.scripts]
 drum2midi = "cli.drum2midi:main"
 
+[project.urls]
+Homepage = "https://github.com/happyskygang/yeelowoon"
+Repository = "https://github.com/happyskygang/yeelowoon"
+Issues = "https://github.com/happyskygang/yeelowoon/issues"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["engine*", "cli*"]
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
