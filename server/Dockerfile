@@ -13,12 +13,15 @@ COPY pyproject.toml /app/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r /app/server/requirements.txt
-RUN pip install --no-cache-dir -e /app
 
 # Copy application code
 COPY engine/ /app/engine/
 COPY cli/ /app/cli/
 COPY server/ /app/server/
+
+# Install package with fallback version (no .git in Docker)
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.2.0
+RUN pip install --no-cache-dir /app
 
 # Set environment variables
 ENV PYTHONPATH=/app
@@ -30,4 +33,4 @@ ENV WORK_DIR=/tmp/drum2midi-jobs
 EXPOSE 8001
 
 # Run server
-CMD ["python", "-m", "server.main"]
+CMD ["python", "-m", "uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8001"]
