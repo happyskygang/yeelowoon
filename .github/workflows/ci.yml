@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required for setuptools_scm
+          fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -29,9 +29,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+          pip install -r server/requirements.txt
 
-      - name: Run tests
-        run: pytest --cov=engine --cov=cli --cov-report=xml
+      - name: Run engine tests
+        run: pytest tests/ --cov=engine --cov=cli --cov-report=xml -v
+
+      - name: Verify server imports
+        run: python -c "from server.main import app; print('Server OK')"
 
       - name: Upload coverage
         if: matrix.python-version == '3.11'
@@ -40,9 +44,57 @@ jobs:
           files: coverage.xml
           fail_ci_if_error: false
 
+  server-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+          pip install -r server/requirements.txt
+          pip install httpx
+
+      - name: Start server
+        run: |
+          python -m uvicorn server.main:app --host 0.0.0.0 --port 8001 &
+          sleep 3
+
+      - name: Test health endpoint
+        run: |
+          curl -f http://localhost:8001/healthz || exit 1
+          echo "Health check passed"
+
+      - name: Test API endpoints
+        run: |
+          python -c "
+          import httpx
+
+          # Health check
+          r = httpx.get('http://localhost:8001/healthz')
+          assert r.status_code == 200
+          print('Health:', r.json())
+
+          # Invalid job
+          r = httpx.get('http://localhost:8001/api/jobs/invalid-id')
+          assert r.status_code == 404
+          print('404 test passed')
+
+          print('All API tests passed')
+          "
+
   build:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, server-test]
 
     steps:
       - uses: actions/checkout@v4
@@ -66,3 +118,21 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [test, server-test]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t drum2midi-server -f server/Dockerfile .
+
+      - name: Test Docker image
+        run: |
+          docker run -d --name test-server -p 8001:8001 drum2midi-server
+          sleep 5
+          curl -f http://localhost:8001/healthz || exit 1
+          docker stop test-server
+          echo "Docker test passed"
